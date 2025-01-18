@@ -3,21 +3,38 @@ from tkinter import ttk, filedialog
 from configparser import ConfigParser
 import os
 
+# 設定ファイルのパス
+SETTINGS_FILE = "setting.ini"
+
 # INIファイルを読み込む関数
 def load_ini_file(file_path):
     config = ConfigParser()
     config.read(file_path, encoding='ANSI')  # ANSIエンコーディングで読み込む
     return config
 
-# セクションのラベルを取得する関数
-def get_section_label(section, config):
-    parts_name = config[section].get('PartsName', '')
-    return f"{section}: {parts_name}" if parts_name else section
+# 設定を保存する関数
+def save_settings():
+    settings = ConfigParser()
+    settings['LAST_USED'] = {
+        'directory': dir_var.get()
+    }
+    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        settings.write(f)
+
+# 設定を読み込む関数
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        settings = ConfigParser()
+        settings.read(SETTINGS_FILE, encoding='utf-8')
+        if 'LAST_USED' in settings:
+            return settings['LAST_USED']
+    return {}
 
 # ディレクトリ選択時の処理
 def on_directory_select():
     dir_path = filedialog.askdirectory()
     if dir_path:
+        dir_var.set(dir_path)
         try:
             global file_paths
             file_paths = [os.path.join(dir_path, f) for f in os.listdir(dir_path) if f.endswith('.txt')]
@@ -28,6 +45,7 @@ def on_directory_select():
             parameter_menu['values'] = []
             parameter_var.set('')
             value_var.set('')
+            save_settings()
         except Exception as e:
             value_var.set(f"Error: {e}")
 
@@ -40,7 +58,7 @@ def on_file_select(event):
             try:
                 global config
                 config = load_ini_file(file_path)
-                section_menu['values'] = [get_section_label(section, config) for section in config.sections()]
+                section_menu['values'] = [section for section in config.sections()]
                 section_var.set('')
                 parameter_menu['values'] = []
                 parameter_var.set('')
@@ -50,24 +68,21 @@ def on_file_select(event):
 
 # セクション選択時の処理
 def on_section_select(event):
-    section_label = section_var.get()
-    section = section_label.split(':')[0].strip()  # セクション名を抽出
+    section = section_var.get()
     parameter_menu['values'] = list(config[section].keys())
     parameter_var.set('')
     value_var.set('')
 
 # パラメータ選択時の処理
 def on_parameter_select(event):
-    section_label = section_var.get()
-    section = section_label.split(':')[0].strip()  # セクション名を抽出
+    section = section_var.get()
     parameter = parameter_var.get()
     value = config[section].get(parameter, '')
     value_var.set(value)
 
 # 値を保存する処理
 def save_value():
-    section_label = section_var.get()
-    section = section_label.split(':')[0].strip()  # セクション名を抽出
+    section = section_var.get()
     parameter = parameter_var.get()
     new_value = value_var.get()
 
@@ -91,9 +106,20 @@ def save_value():
 root = tk.Tk()
 root.title("ACParts-bin Editor")
 
+# 保存された設定をロード
+settings = load_settings()
+
+# ディレクトリ表示ラベル
+dir_label = ttk.Label(root, text="Directory:")
+dir_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+dir_var = tk.StringVar(value=settings.get('directory', ''))
+dir_display = ttk.Entry(root, textvariable=dir_var, state="readonly", width=50)
+dir_display.grid(row=0, column=1, padx=5, pady=5)
+
 # ディレクトリ選択ボタン
 dir_button = ttk.Button(root, text="Select Directory", command=on_directory_select)
-dir_button.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+dir_button.grid(row=0, column=2, padx=5, pady=5, sticky="w")
 
 # ファイル選択
 file_label = ttk.Label(root, text="File:")
@@ -132,7 +158,15 @@ value_entry.grid(row=4, column=1, padx=5, pady=5)
 
 # 保存ボタン
 save_button = ttk.Button(root, text="Save", command=save_value)
-save_button.grid(row=5, column=0, columnspan=2, pady=5)
+save_button.grid(row=5, column=0, columnspan=3, pady=5)
+
+# 初期化処理（ディレクトリが設定されている場合）
+if dir_var.get():
+    try:
+        file_paths = [os.path.join(dir_var.get(), f) for f in os.listdir(dir_var.get()) if f.endswith('.txt')]
+        file_menu['values'] = [os.path.basename(f) for f in file_paths]
+    except Exception as e:
+        value_var.set(f"Error: {e}")
 
 # ウィンドウを開始
 root.mainloop()
