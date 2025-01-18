@@ -58,8 +58,15 @@ def on_file_select(event):
         if file_path:
             try:
                 global config
+                global section_display_map
                 config = load_ini_file(file_path)
-                section_menu['values'] = [section for section in config.sections()]
+
+                # セクション名に "PartsName" を付加して表示名を生成
+                section_display_map = {
+                    f"{section}: {config[section].get('PartsName', 'Unknown')}": section
+                    for section in config.sections()
+                }
+                section_menu['values'] = list(section_display_map.keys())
                 section_var.set('')
                 parameter_menu['values'] = []
                 parameter_var.set('')
@@ -70,21 +77,26 @@ def on_file_select(event):
 
 # セクション選択時の処理
 def on_section_select(event):
-    section = section_var.get()
-    parameter_menu['values'] = list(config[section].keys())
-    parameter_var.set('')
-    value_var.set('')
+    display_name = section_var.get()  # 表示名（例: "セクション名: PartsName"）
+    section = section_display_map.get(display_name)  # 元のセクション名を取得
+    if section:
+        parameter_menu['values'] = list(config[section].keys())
+        parameter_var.set('')
+        value_var.set('')
 
 # パラメータ選択時の処理
 def on_parameter_select(event):
-    section = section_var.get()
+    display_name = section_var.get()
+    section = section_display_map.get(display_name)  # 元のセクション名を取得
     parameter = parameter_var.get()
-    value = config[section].get(parameter, '')
-    value_var.set(value)
+    if section and parameter:
+        value = config[section].get(parameter, '')
+        value_var.set(value)
 
 # 値を保存する処理
 def save_value():
-    section = section_var.get()
+    display_name = section_var.get()
+    section = section_display_map.get(display_name)  # 元のセクション名を取得
     parameter = parameter_var.get()
     new_value = value_var.get()
 
@@ -167,7 +179,7 @@ message_var = tk.StringVar()
 message_label = ttk.Label(root, textvariable=message_var, foreground="blue")
 message_label.grid(row=6, column=0, columnspan=3, pady=5)
 
-# 初期化処理（ディレクトリが設定されている場合）
+# 修正箇所の確認用初期化処理
 if dir_var.get():
     try:
         file_paths = [os.path.join(dir_var.get(), f) for f in os.listdir(dir_var.get()) if f.endswith('.txt')]
