@@ -1,20 +1,60 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
-from configparser import ConfigParser
+import configparser
 import os
+
+# 有効なファイル名のリスト
+VALID_FILES = [
+    "arm unit.txt", "arms.txt", "back unit.txt", "backbooster.txt", "booster.txt", 
+    "core.txt", "fcs.txt", "generator.txt", "head.txt", "legs.txt", 
+    "overedbooster.txt", "shoulder.txt", "sidebooster.txt"
+]
+
+# 各ファイルに対応する最大セクション数
+MAX_SECTIONS = {
+    "arm unit.txt": 70,
+    "arms.txt": 28,
+    "back unit.txt": 62,
+    "backbooster.txt": 9,
+    "booster.txt": 14,
+    "core.txt": 16,
+    "fcs.txt": 14,
+    "generator.txt": 14,
+    "head.txt": 21,
+    "legs.txt": 31,
+    "overdbooster.txt": 14,
+    "shoulder.txt": 21,
+    "sidebooster.txt": 12
+}
 
 # 設定ファイルのパス
 SETTINGS_FILE = "setting.ini"
 
+# CaseConfigParser クラスを定義
+class CaseConfigParser(configparser.ConfigParser):
+    def optionxform(self, optionstr):
+        return optionstr  # 大文字小文字を変換しない
+
 # INIファイルを読み込む関数
 def load_ini_file(file_path):
-    config = ConfigParser()
+    config = CaseConfigParser(allow_no_value=True, delimiters=("=", ":"))
     config.read(file_path, encoding='ANSI')  # ANSIエンコーディングで読み込む
+
+    # 重複するキーを無視する
+    for section in config.sections():
+        seen_keys = set()  # すでに処理したキーを記録するセット
+        for key in list(config[section].keys()):
+            if key.lower() in seen_keys:  # 小文字で重複を確認
+                # 重複するキーを削除
+                del config[section][key]
+            else:
+                seen_keys.add(key.lower())  # 小文字でキーを記録
+
     return config
 
 # 設定を保存する関数
 def save_settings():
-    settings = ConfigParser()
+    settings = CaseConfigParser()
     settings['LAST_USED'] = {
         'directory': dir_var.get()
     }
@@ -24,7 +64,7 @@ def save_settings():
 # 設定を読み込む関数
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
-        settings = ConfigParser()
+        settings = CaseConfigParser()
         settings.read(SETTINGS_FILE, encoding='utf-8')
         if 'LAST_USED' in settings:
             return settings['LAST_USED']
@@ -53,13 +93,26 @@ def on_directory_select():
 # ファイル選択時の処理
 def on_file_select(event):
     file_name = file_var.get()
-    if file_name:
+    if file_name and file_name in VALID_FILES:
         file_path = next((f for f in file_paths if os.path.basename(f) == file_name), None)
         if file_path:
             try:
                 global config
+                global section_display_map
                 config = load_ini_file(file_path)
-                section_menu['values'] = [section for section in config.sections()]
+
+                # 対応する最大セクション数を取得
+                max_sections = MAX_SECTIONS.get(file_name, 0)
+
+                # セクション数を制限
+                sections_to_display = config.sections()[:max_sections]
+
+                # セクション名に "PartsName" を付加して表示名を生成
+                section_display_map = {
+                    f"{section}: {config[section].get('PartsName', 'Unknown')}": section
+                    for section in sections_to_display
+                }
+                section_menu['values'] = list(section_display_map.keys())
                 section_var.set('')
                 parameter_menu['values'] = []
                 parameter_var.set('')
@@ -67,24 +120,31 @@ def on_file_select(event):
                 message_var.set('')
             except Exception as e:
                 message_var.set(f"Error: {e}")
+    else:
+        message_var.set("Invalid file selected.")
 
 # セクション選択時の処理
 def on_section_select(event):
-    section = section_var.get()
-    parameter_menu['values'] = list(config[section].keys())
-    parameter_var.set('')
-    value_var.set('')
+    display_name = section_var.get()  # 表示名（例: "セクション名: PartsName"）
+    section = section_display_map.get(display_name)  # 元のセクション名を取得
+    if section:
+        parameter_menu['values'] = list(config[section].keys())
+        parameter_var.set('')
+        value_var.set('')
 
 # パラメータ選択時の処理
 def on_parameter_select(event):
-    section = section_var.get()
+    display_name = section_var.get()
+    section = section_display_map.get(display_name)  # 元のセクション名を取得
     parameter = parameter_var.get()
-    value = config[section].get(parameter, '')
-    value_var.set(value)
+    if section and parameter:
+        value = config[section].get(parameter, '')
+        value_var.set(value)
 
 # 値を保存する処理
 def save_value():
-    section = section_var.get()
+    display_name = section_var.get()
+    section = section_display_map.get(display_name)  # 元のセクション名を取得
     parameter = parameter_var.get()
     new_value = value_var.get()
 
@@ -167,7 +227,7 @@ message_var = tk.StringVar()
 message_label = ttk.Label(root, textvariable=message_var, foreground="blue")
 message_label.grid(row=6, column=0, columnspan=3, pady=5)
 
-# 初期化処理（ディレクトリが設定されている場合）
+# 修正箇所の確認用初期化処理
 if dir_var.get():
     try:
         file_paths = [os.path.join(dir_var.get(), f) for f in os.listdir(dir_var.get()) if f.endswith('.txt')]
