@@ -45,9 +45,10 @@ def on_directory_select():
             parameter_menu['values'] = []
             parameter_var.set('')
             value_var.set('')
+            message_var.set('')
             save_settings()
         except Exception as e:
-            value_var.set(f"Error: {e}")
+            message_var.set(f"Error: {e}")
 
 # ファイル選択時の処理
 def on_file_select(event):
@@ -63,8 +64,9 @@ def on_file_select(event):
                 parameter_menu['values'] = []
                 parameter_var.set('')
                 value_var.set('')
+                message_var.set('')
             except Exception as e:
-                value_var.set(f"Error: {e}")
+                message_var.set(f"Error: {e}")
 
 # セクション選択時の処理
 def on_section_select(event):
@@ -94,13 +96,13 @@ def save_value():
             file_name = file_var.get()
             file_path = next((f for f in file_paths if os.path.basename(f) == file_name), None)
             if file_path:
-                with open(file_path, 'w', encoding='shift_jis') as configfile:
+                with open(file_path, 'w', encoding='ANSI') as configfile:
                     config.write(configfile)
-                value_var.set(f"Value saved: {new_value}")
+                message_var.set(f"Value saved: {new_value}")
         except Exception as e:
-            value_var.set(f"Error: {e}")
+            message_var.set(f"Error: {e}")
     else:
-        value_var.set("Invalid data")
+        message_var.set("Invalid data")
 
 # メインウィンドウの作成
 root = tk.Tk()
@@ -160,13 +162,18 @@ value_entry.grid(row=4, column=1, padx=5, pady=5)
 save_button = ttk.Button(root, text="Save", command=save_value)
 save_button.grid(row=5, column=0, columnspan=3, pady=5)
 
+# メッセージ表示ラベル
+message_var = tk.StringVar()
+message_label = ttk.Label(root, textvariable=message_var, foreground="blue")
+message_label.grid(row=6, column=0, columnspan=3, pady=5)
+
 # 初期化処理（ディレクトリが設定されている場合）
 if dir_var.get():
     try:
         file_paths = [os.path.join(dir_var.get(), f) for f in os.listdir(dir_var.get()) if f.endswith('.txt')]
         file_menu['values'] = [os.path.basename(f) for f in file_paths]
     except Exception as e:
-        value_var.set(f"Error: {e}")
+        message_var.set(f"Error: {e}")
 
 # ウィンドウを開始
 root.mainloop()
